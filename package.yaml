@@ -1,18 +1,21 @@
 name: yesod-routes-metrics
 version: '0.1.0.0'
-synopsis: Compute route access metrics for yesod
+synopsis: Parser Yesod routes file and compute route access metrics for Yesod
 description: README.md
 category: Web
 author: James M.C. Haver II
-maintainer: james.haver@plowtech.net
+maintainer: mchaver@gmail.com
 copyright: 2017 Plow Technologies
 license: BSD3
-github: plow-technologies/yesod-route-metrics
+github: plow-technologies/yesod-routes-metrics
 
 library:
   source-dirs: src
   exposed-modules: 
   - Yesod.Routes.Metrics
+  - Yesod.Routes.Convert.Internal  
+  - Yesod.Routes.Parser.Internal
+  - Yesod.Routes.Util  
   dependencies:
   - base >= 4.7 && < 5
   - bytestring  
@@ -20,9 +23,12 @@ library:
   - text
   - yesod-core
   - wai
+  ghc-options:
+  - -Wall
+  - -Werror
 
 executables:   
-  tttt:
+  print-routes:
     source-dirs: app
     main: Main.hs
     dependencies:
