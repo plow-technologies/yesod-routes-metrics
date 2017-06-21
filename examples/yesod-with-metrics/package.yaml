@@ -1,0 +1,24 @@
+name: yesod-with-metrics
+version: '0.1.0.0'
+synopsis: abc
+description: README.md
+category: Web
+author: James M.C. Haver II
+maintainer: mchaver@gmail.com
+copyright: 2017 Plow Technologies
+license: BSD3
+github: plow-technologies/yesod-routes-metrics
+
+executables:   
+  yesod-with-metrics:
+    source-dirs: app
+    main: Main.hs
+    dependencies:
+    - base >= 4.7 && < 5
+    - bytestring
+    - ekg-core
+    - file-embed
+    - text
+    - warp
+    - yesod-routes-metrics
+    - yesod

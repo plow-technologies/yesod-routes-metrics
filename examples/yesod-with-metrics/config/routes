@@ -1,0 +1,4 @@
+/test TestR GET
+/person/#Text PersonR GET
+/year/#Integer/month/#Text/day/#Int DateR
+/wiki/*Texts WikiR GET
