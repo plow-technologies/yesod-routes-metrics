@@ -19,7 +19,13 @@ getResource req resourceTrees =
     Just rt -> getRouteName (BS.unpack $ requestMethod req) rt
   where
     mResourceTree = getRequestResourceTree req resourceTrees
-    
+
+getAllRouteNames :: [ResourceTree a] -> [String]
+getAllRouteNames = concat . fmap getRTNames
+  
+getRTNames :: ResourceTree a -> [String]
+getRTNames (ResourceLeaf rl) = (\m -> (toLower <$> m) ++ (resourceName rl)) <$> (methodsMethods . resourceDispatch $ rl)
+getRTNames _ = []
 
 getRouteName :: String -> ResourceTree a -> Maybe String
 getRouteName method rt@(ResourceLeaf rl) =

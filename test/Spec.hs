@@ -12,6 +12,7 @@ import Yesod.Routes.Metrics
 import Yesod.Routes.TH.Types
 import Test.Hspec
 
+-- only 
 defaultRequest :: Request
 defaultRequest = 
   Request 
@@ -126,7 +127,19 @@ spec = do
 
     it "POST path [\"group\"] returns newGroupR" $
       (getResource (defaultRequest {requestMethod = "POST", pathInfo = ["group"]}) appRoutes) `shouldBe` (Just "postNewGroupR")
-
+  
+  describe "getAllRouteNames" $ do
+    it "getAllRouteNames appRoutes should contain a list of route names" $
+      getAllRouteNames appRoutes `shouldContain`
+        [ "getHomeR"
+        , "getTestR"
+        , "postNewGroupR"
+        , "getGroupR"
+        , "postNewUserR"
+        , "getUserR"
+        ]
+      
+      
 
 {- Wai Request
 
