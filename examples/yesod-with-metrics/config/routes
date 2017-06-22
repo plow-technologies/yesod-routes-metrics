@@ -1,4 +1,5 @@
-/test TestR GET
-/person/#Text PersonR GET
-/year/#Integer/month/#Text/day/#Int DateR
-/wiki/*Texts WikiR GET
+/ HomeR GET
+
+/user      NewUserR POST 
+
+/user/#Int UserR    GET DELETE

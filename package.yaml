@@ -13,6 +13,7 @@ library:
   source-dirs: src
   exposed-modules: 
   - Yesod.Routes.Metrics
+  - Yesod.Routes.Convert
   - Yesod.Routes.Convert.Internal  
   - Yesod.Routes.Parser.Internal
   - Yesod.Routes.Util  

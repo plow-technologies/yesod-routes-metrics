@@ -16,9 +16,12 @@ executables:
     dependencies:
     - base >= 4.7 && < 5
     - bytestring
+    - ekg
     - ekg-core
     - file-embed
     - text
     - warp
     - yesod-routes-metrics
     - yesod
+    ghc-options:
+    - -with-rtsopts=-T

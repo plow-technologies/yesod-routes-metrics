@@ -10,47 +10,52 @@ import           Control.Concurrent (forkIO, threadDelay)
 import           Data.ByteString.Char8 (unpack)
 import           Data.ByteString (ByteString)
 import           Data.FileEmbed
+import           Data.Monoid ((<>))
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Foundation
 import           Network.Wai.Handler.Warp (run)
-import           System.Metrics           (newStore, sampleAll)
+import           System.Metrics           (newStore, registerGcMetrics, sampleAll)
 import           Yesod
-import           Yesod.Routes.Metrics
+import qualified Yesod.Routes.Metrics as Yesod
+import           System.Remote.Monitoring (forkServerWith)
 
 mkYesodDispatch "App" resourcesApp
 
-routesFile :: ByteString
-routesFile = $(embedFile "config/routes")
+routesFileContents :: ByteString
+routesFileContents = $(embedFile "config/routes")
 
-getTestR :: Handler Text
-getTestR = return "Hello World!"
+getHomeR :: Handler Text
+getHomeR = return "Hello World!"
 
-getPersonR :: Text -> Handler Html
-getPersonR name = defaultLayout [whamlet|<h1>Hello #{name}!|]
+postNewUserR :: Handler Text
+postNewUserR = return $ "Making a new user"
 
-handleDateR :: Integer -> Text -> Int -> Handler Text -- text/plain
-handleDateR year month day =
-    return $
-        T.concat [month, " ", T.pack $ show day, ", ", T.pack $ show year]
+getUserR :: Int -> Handler Text
+getUserR userId = return $ "User with id: " <> (T.pack . show $ userId)
 
-getWikiR :: [Text] -> Handler Text
-getWikiR = return . T.unwords
+deleteUserR :: Int -> Handler Text
+deleteUserR userId = return $ "Deleted user with id: " <> (T.pack . show $ userId)
 
 main :: IO ()
-main = do 
-  let resources  = resourcesFromString $ unpack routesFile
-      routeNames = convertResourceTreesToRouteNames resources
+main = do
+  --let resources  = Yesod.resourcesFromString $ unpack routesFile
+  --    routeNames = Yesod.convertResourceTreesToRouteNames resources
   
   app <- toWaiApp App
   store <- newStore
-  yesodMetrics <- registerYesodMetrics "test" routeNames store
+  yesodMetrics <- Yesod.registerYesodMetrics True "routes" routesFileContents store
+  registerGcMetrics store
   
+  -- print store contents
   _ <- forkIO $ loop store
   
-  run 3000 (metrics resources yesodMetrics $ app)
+  _ <- forkServerWith store "localhost" 7000
   
-  where 
+  run 3000 (Yesod.metrics routesFileContents yesodMetrics $ app)
+  
+  where
+    -- see store updates on the server side
     loop store = do
       sample <- sampleAll store
       print sample      
