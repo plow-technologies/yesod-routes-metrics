@@ -31,14 +31,6 @@ library:
   - -Wall
   - -Werror
 
-executables:   
-  print-routes:
-    source-dirs: app
-    main: Main.hs
-    dependencies:
-    - base >= 4.7 && < 5
-    - yesod-routes-metrics
-
 tests:
   yesod-routes-metrics-test:
     source-dirs: test

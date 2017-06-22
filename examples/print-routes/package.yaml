@@ -1,0 +1,22 @@
+name: print-routes
+version: '0.1.0.0'
+synopsis: abc
+description: README.md
+category: Web
+author: James M.C. Haver II
+maintainer: mchaver@gmail.com
+copyright: 2017 Plow Technologies
+license: BSD3
+github: plow-technologies/yesod-routes-metrics
+
+executables:   
+  print-routes:
+    source-dirs: app
+    main: Main.hs
+    dependencies:
+    - base >= 4.7 && < 5
+    - bytestring
+    - text
+    - yesod-routes-metrics
+    ghc-options:
+    - -with-rtsopts=-T

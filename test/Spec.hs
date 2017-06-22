@@ -9,9 +9,8 @@ import qualified Network.HTTP.Types           as H
 import Network.Socket
 import Network.Wai.Internal
 import Yesod.Routes.Metrics
-import Yesod.Routes.Convert.Internal ( convertRequestToResourceTree
-                                     , convertMethodAndPathToResourceTree
-                                     , comparePathToResourceTree)
+import Yesod.Routes.Convert.Internal
+import Yesod.Routes.Parser.Internal
 import Yesod.Routes.TH.Types
 import Test.Hspec
 
