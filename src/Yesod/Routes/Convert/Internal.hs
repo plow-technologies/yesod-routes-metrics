@@ -13,7 +13,7 @@ convertResourceTreesToRouteNames :: [ResourceTree a] -> [String]
 convertResourceTreesToRouteNames = concat . fmap convertResourceTreeToRouteNames
 
 convertResourceTreeToRouteNames :: ResourceTree a -> [String]
-convertResourceTreeToRouteNames (ResourceLeaf rl) = (\m -> (toLower <$> m) ++ (resourceName rl)) <$> (methodsMethods . resourceDispatch $ rl)
+convertResourceTreeToRouteNames (ResourceLeaf rl@(Resource _ _ (Methods _ _) _ _)) = (\m -> (toLower <$> m) ++ (resourceName rl)) <$> (methodsMethods . resourceDispatch $ rl)
 convertResourceTreeToRouteNames _ = []
 
 
