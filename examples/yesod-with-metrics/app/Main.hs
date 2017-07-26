@@ -39,9 +39,6 @@ deleteUserR userId = return $ "Deleted user with id: " <> (T.pack . show $ userI
 
 main :: IO ()
 main = do
-  --let resources  = Yesod.resourcesFromString $ unpack routesFile
-  --    routeNames = Yesod.convertResourceTreesToRouteNames resources
-  
   app <- toWaiApp App
   store <- newStore
   yesodMetrics <- Yesod.registerYesodMetrics True "routes" routesFileContents store
