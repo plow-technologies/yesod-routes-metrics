@@ -1,5 +1,6 @@
 module Yesod.Routes.Util where
-  
+
+import           Data.Char (isUpper)  
 import           Yesod.Routes.TH.Types
 
 -- useful for testing and debugging
@@ -11,3 +12,6 @@ showResourceTree (ResourceParent s co ps rts) =
   where 
     showPiece p = 
       ", " ++ show p
+
+prettyPrintRouteName :: String -> String
+prettyPrintRouteName =  concat . fmap (\c -> if isUpper c then (" " ++ [c]) else [c])

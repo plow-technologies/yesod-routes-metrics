@@ -2,6 +2,9 @@
 
 module Yesod.Routes.Metrics (
    YesodMetrics(..)
+ , YesodMetricsConfig(..)
+ , defaultYesodMetricsConfig
+ , addSpacesToRoute
  , registerYesodMetrics
  , registerYesodMetricsWithResourceTrees
  , metrics
@@ -13,6 +16,7 @@ import Yesod.Routes.Parser.Internal
 import           Control.Monad   (forM)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
+import           Data.Char (isUpper)
 import           Data.Monoid     ((<>))
 import qualified Data.Map.Strict as Map
 import           Data.Text       (Text)
@@ -28,52 +32,69 @@ data YesodMetrics =
     { routeCounters :: Map.Map String Counter.Counter
     }
 
-registerYesodMetrics :: Bool -> Text -> ByteString -> Store -> IO YesodMetrics
-registerYesodMetrics verbose namespace routesFileContents store = do
-  registerYesodMetricsWithResourceTrees verbose namespace resources store  
+data YesodMetricsConfig =
+  YesodMetricsConfig
+    { namespace      :: Text
+    , verbose        :: Bool
+    , underlined     :: Bool
+    , alterRouteName :: (String -> String)
+    }
+
+defaultYesodMetricsConfig :: YesodMetricsConfig
+defaultYesodMetricsConfig = YesodMetricsConfig "" True True id
+
+addSpacesToRoute :: String -> String
+addSpacesToRoute = concat . fmap (\x -> if isUpper x then (" " ++ [x]) else [x])
+
+registerYesodMetrics :: YesodMetricsConfig -> ByteString -> Store -> IO YesodMetrics
+registerYesodMetrics config routesFileContents store = do
+  registerYesodMetricsWithResourceTrees config resources store  
   where
     resources = resourcesFromString . C.unpack $ routesFileContents
 
-registerYesodMetricsWithResourceTrees :: Bool -> Text -> [ResourceTree String] -> Store -> IO YesodMetrics
-registerYesodMetricsWithResourceTrees verbose namespace resources store = do
+registerYesodMetricsWithResourceTrees :: YesodMetricsConfig -> [ResourceTree String] -> Store -> IO YesodMetrics
+registerYesodMetricsWithResourceTrees ymc resources store = do
   counters <- forM routes $ \route -> do 
     let namespacedRoute = namespace' <> (T.pack route)
     counter <- createCounter namespacedRoute store
-    if verbose
+    if verbose ymc
       then do
-        counter1xx <- createCounter (namespacedRoute <> "_response_status_1xx") store
-        counter2xx <- createCounter (namespacedRoute <> "_response_status_2xx") store
-        counter3xx <- createCounter (namespacedRoute <> "_response_status_3xx") store
-        counter4xx <- createCounter (namespacedRoute <> "_response_status_4xx") store
-        counter5xx <- createCounter (namespacedRoute <> "_response_status_5xx") store
- 
-        return  [ (route, counter)
-                , ((route <> "_response_status_1xx"), counter1xx)
-                , ((route <> "_response_status_2xx"), counter2xx)
-                , ((route <> "_response_status_3xx"), counter3xx)
-                , ((route <> "_response_status_4xx"), counter4xx)
-                , ((route <> "_response_status_5xx"), counter5xx)
-                ]
+        counters <- mapM (\rs -> createCounter (namespacedRoute <> rs) store) responseStatuses'
+        return $ [(route, counter)] ++ zip ((T.unpack . (<>) (T.pack route)) <$> responseStatuses') counters
       else 
         return [(route, counter)]
         
   return $ YesodMetrics (Map.fromList $ concat counters)
 
   where
-    routes = convertResourceTreesToRouteNames resources
+    routes = (alterRouteName ymc) <$> convertResourceTreesToRouteNames resources
+    
+    responseStatuses  = (\n -> "_response_status_" ++ (show n) ++ "xx") <$> ([1..5] :: [Int])
+    
+    alterResponseStatus =
+      if underlined ymc
+        then id
+        else fmap (\c -> 
+                    case c of 
+                      '_' -> ' '
+                      _   -> c
+                  )
+                      
+    responseStatuses' = T.pack . alterResponseStatus <$> responseStatuses
+    
     -- append a '.' to a given namespace, if not empty
     namespace'
-      | T.null namespace = namespace
-      | otherwise = namespace <> "."
+      | T.null (namespace ymc) = ""
+      | otherwise = (namespace ymc) <> "."
 
-metrics :: ByteString -> YesodMetrics -> Middleware
-metrics routesFileContents yesodMetrics app req respond =
-  metricsWithResourceTrees resources yesodMetrics app req respond
+metrics :: YesodMetricsConfig -> ByteString -> YesodMetrics -> Middleware
+metrics ymc routesFileContents yesodMetrics app req respond =
+  metricsWithResourceTrees ymc resources yesodMetrics app req respond
   where 
     resources  = resourcesFromString . C.unpack $ routesFileContents
 
-metricsWithResourceTrees :: [ResourceTree String] -> YesodMetrics -> Middleware
-metricsWithResourceTrees resources yesodMetrics app req respond = do
+metricsWithResourceTrees :: YesodMetricsConfig -> [ResourceTree String] -> YesodMetrics -> Middleware
+metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
   -- if the path in req corresponds to one of the Yesod routes
   -- then update its corresponding counter
   case mRouteName of
@@ -91,11 +112,21 @@ metricsWithResourceTrees resources yesodMetrics app req respond = do
         Nothing -> return ()
         Just routeName ->
           case statusCode $ responseStatus res of
-            s | s >= 500  -> updateRoute (routeName <> "_response_status_5xx")
-              | s >= 400  -> updateRoute (routeName <> "_response_status_4xx")
-              | s >= 300  -> updateRoute (routeName <> "_response_status_3xx")
-              | s >= 200  -> updateRoute (routeName <> "_response_status_2xx")
-              | otherwise -> updateRoute (routeName <> "_response_status_1xx")
+            s | s >= 500  -> updateRoute (routeName' <> (alterResponseStatus "_response_status_5xx"))
+              | s >= 400  -> updateRoute (routeName' <> (alterResponseStatus "_response_status_4xx"))
+              | s >= 300  -> updateRoute (routeName' <> (alterResponseStatus "_response_status_3xx"))
+              | s >= 200  -> updateRoute (routeName' <> (alterResponseStatus "_response_status_2xx"))
+              | otherwise -> updateRoute (routeName' <> (alterResponseStatus "_response_status_1xx"))
+          where
+            routeName' = (alterRouteName ymc) routeName
+            alterResponseStatus =
+              if underlined ymc
+                then id
+                else fmap (\c -> 
+                            case c of 
+                              '_' -> ' '
+                              _   -> c
+                          )
       respond res
     
     updateRoute name = 
