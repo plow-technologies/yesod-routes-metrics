@@ -111,7 +111,7 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
   -- then update its corresponding counter
   case mRouteName of
     Nothing        -> return ()
-    Just routeName -> updateRoute routeName
+    Just routeName -> updateRoute $ (alterRouteName ymc) routeName
           
   app req $ respond'
 

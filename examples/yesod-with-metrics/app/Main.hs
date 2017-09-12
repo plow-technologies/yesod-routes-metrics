@@ -56,5 +56,5 @@ main = do
     loop store = do
       sample <- sampleAll store
       print sample      
-      threadDelay 1000000
+      threadDelay 5000000
       loop store
