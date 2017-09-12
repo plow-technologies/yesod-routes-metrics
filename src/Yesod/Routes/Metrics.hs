@@ -6,6 +6,7 @@ module Yesod.Routes.Metrics (
  , defaultYesodMetricsConfig
  , spacedYesodMetricsConfig
  , addSpacesToRoute
+ , removeUnderlines
  , registerYesodMetricsMkMetricsFunction
  , registerYesodMetrics
  , registerYesodMetricsWithResourceTrees
@@ -52,6 +53,14 @@ spacedYesodMetricsConfig = YesodMetricsConfig "" True False addSpacesToRoute
 addSpacesToRoute :: String -> String
 addSpacesToRoute = concat . fmap (\x -> if isUpper x then (" " ++ [x]) else [x])
 
+removeUnderlines :: String -> String
+removeUnderlines = 
+  fmap (\c -> 
+    case c of 
+      '_' -> ' '
+      _   -> c
+    )
+
 
 registerYesodMetricsMkMetricsFunction :: YesodMetricsConfig -> ByteString -> Store -> IO Middleware
 registerYesodMetricsMkMetricsFunction config routesFileContents store = do
@@ -86,11 +95,7 @@ registerYesodMetricsWithResourceTrees ymc resources store = do
     alterResponseStatus =
       if underlined ymc
         then id
-        else fmap (\c -> 
-                    case c of 
-                      '_' -> ' '
-                      _   -> c
-                  )
+        else removeUnderlines
                       
     responseStatuses' = T.pack . alterResponseStatus <$> responseStatuses
     
@@ -134,11 +139,7 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
             alterResponseStatus =
               if underlined ymc
                 then id
-                else fmap (\c -> 
-                            case c of 
-                              '_' -> ' '
-                              _   -> c
-                          )
+                else removeUnderlines
       respond res
     
     updateRoute name = 
