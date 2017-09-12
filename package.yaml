@@ -37,13 +37,20 @@ tests:
     main: Spec.hs
     dependencies:
     - base >= 4.7 && < 5
+    - bytestring
     - containers
+    - ekg
     - ekg-core
+    - file-embed
     - hspec
     - http-types
+    - HTTP
     - network
+    - text
+    - unordered-containers
     - vault
+    - yesod
     - yesod-core
     - yesod-routes-metrics
     - wai
-    
+    - warp

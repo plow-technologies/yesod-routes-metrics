@@ -10,3 +10,6 @@
 
 * Add `registerYesodMetricsMkMetricsFunction` to simplify initialization and 
   make sure `registerYesodMetrics`and `metrics` use the same data.
+
+* Create app in tests to make sure route names and store work as expected with 
+  different options.

@@ -4,17 +4,28 @@
 
 module Main where
 
+import           App (runYesodServer)
+
+import           Control.Concurrent (forkIO, killThread, threadDelay)
+
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map.Strict as Map
 import qualified Data.Vault.Lazy as V
+
+import           Network.HTTP (simpleHTTP, getRequest)
 import qualified Network.HTTP.Types           as H
-import Network.Socket
-import Network.Wai.Internal
-import System.Metrics (newStore)
-import Yesod.Routes.Metrics
-import Yesod.Routes.Convert.Internal
-import Yesod.Routes.Parser.Internal
-import Yesod.Routes.TH.Types
-import Test.Hspec
+import           Network.Socket
+import           Network.Wai.Internal
+
+import           System.Metrics (Value(..), newStore, sampleAll)
+
+import           Test.Hspec
+
+import           Yesod.Routes.Metrics
+import           Yesod.Routes.Convert.Internal
+import           Yesod.Routes.Parser.Internal
+import           Yesod.Routes.TH.Types
+
 
 -- only 
 defaultRequest :: Request
@@ -183,7 +194,38 @@ spec = do
         , "get Home R response status 3xx"
         , "get Home R response status 4xx"
         , "get Home R response status 5xx"
-        ]      
+        ]
+  
+  describe "Run a test server and make sure route metrics are stored in the right places" $ do
+    it "spacedYesodMetricsConfig should add spaces to route names in the store" $ do 
+      store <- newStore
+      threadId <- forkIO $ runYesodServer 3333 spacedYesodMetricsConfig store
+      threadDelay 2000000
+      simpleHTTP (getRequest "http://127.0.0.1:3333")
+      sample <- sampleAll store
+      
+      HM.lookup "get Home R" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "get Home R response status 2xx" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "getHomeR" sample `shouldBe` Nothing
+      HM.lookup "getHomeR_response_status_2xx" sample `shouldBe` Nothing
+      HM.lookup "post New User R" sample `shouldBe` (Just $ Counter 0)
+      
+      killThread threadId
+
+    it "defaultYesodMetricsConfig does not alter the route names from Yesod and adds response statuses with underlines" $ do 
+      store <- newStore
+      threadId <- forkIO $ runYesodServer 3334 defaultYesodMetricsConfig store
+      threadDelay 2000000
+      simpleHTTP (getRequest "http://127.0.0.1:3334")
+      sample <- sampleAll store
+      
+      HM.lookup "getHomeR" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "getHomeR_response_status_2xx" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "get Home R" sample `shouldBe` Nothing
+      HM.lookup "get Home R response status 2xx" sample `shouldBe` Nothing
+      HM.lookup "postNewUserR" sample `shouldBe` (Just $ Counter 0)
+      
+      killThread threadId
 
 
 {- Wai Request
