@@ -41,7 +41,7 @@ main :: IO ()
 main = do
   app <- toWaiApp App
   store <- newStore
-  yesodMetrics <- Yesod.registerYesodMetrics True "routes" routesFileContents store
+  yesodMetricsF <- Yesod.registerYesodMetricsMkMetricsFunction Yesod.spacedYesodMetricsConfig routesFileContents store
   registerGcMetrics store
   
   -- print store contents
@@ -49,7 +49,7 @@ main = do
   
   _ <- forkServerWith store "localhost" 7000
   
-  run 3000 (Yesod.metrics routesFileContents yesodMetrics $ app)
+  run 3000 (yesodMetricsF $ app)
   
   where
     -- see store updates on the server side

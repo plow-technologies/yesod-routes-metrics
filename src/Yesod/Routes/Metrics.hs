@@ -4,7 +4,9 @@ module Yesod.Routes.Metrics (
    YesodMetrics(..)
  , YesodMetricsConfig(..)
  , defaultYesodMetricsConfig
+ , spacedYesodMetricsConfig
  , addSpacesToRoute
+ , registerYesodMetricsMkMetricsFunction
  , registerYesodMetrics
  , registerYesodMetricsWithResourceTrees
  , metrics
@@ -43,8 +45,18 @@ data YesodMetricsConfig =
 defaultYesodMetricsConfig :: YesodMetricsConfig
 defaultYesodMetricsConfig = YesodMetricsConfig "" True True id
 
+spacedYesodMetricsConfig :: YesodMetricsConfig
+spacedYesodMetricsConfig = YesodMetricsConfig "" True False addSpacesToRoute
+
+-- | Make route names more readable by adding spaces.
 addSpacesToRoute :: String -> String
 addSpacesToRoute = concat . fmap (\x -> if isUpper x then (" " ++ [x]) else [x])
+
+
+registerYesodMetricsMkMetricsFunction :: YesodMetricsConfig -> ByteString -> Store -> IO Middleware
+registerYesodMetricsMkMetricsFunction config routesFileContents store = do
+  ym <- registerYesodMetrics config routesFileContents store
+  return $ metrics config routesFileContents ym
 
 registerYesodMetrics :: YesodMetricsConfig -> ByteString -> Store -> IO YesodMetrics
 registerYesodMetrics config routesFileContents store = do
