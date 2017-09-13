@@ -4,7 +4,7 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
 
-module Main where
+module App (runYesodServer) where
 
 import           Control.Concurrent (forkIO, threadDelay)
 import           Data.ByteString.Char8 (unpack)
@@ -15,7 +15,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Foundation
 import           Network.Wai.Handler.Warp (run)
-import           System.Metrics           (newStore, registerGcMetrics, sampleAll)
+import           System.Metrics           (newStore, registerGcMetrics, sampleAll, Store)
 import           Yesod
 import qualified Yesod.Routes.Metrics as Yesod
 import           System.Remote.Monitoring (forkServerWith)
@@ -23,7 +23,7 @@ import           System.Remote.Monitoring (forkServerWith)
 mkYesodDispatch "App" resourcesApp
 
 routesFileContents :: ByteString
-routesFileContents = $(embedFile "config/routes")
+routesFileContents = $(embedFile "test/config/routes")
 
 getHomeR :: Handler Text
 getHomeR = return "Hello World!"
@@ -37,24 +37,9 @@ getUserR userId = return $ "User with id: " <> (T.pack . show $ userId)
 deleteUserR :: Int -> Handler Text
 deleteUserR userId = return $ "Deleted user with id: " <> (T.pack . show $ userId)
 
-main :: IO ()
-main = do
+runYesodServer :: Int -> Yesod.YesodMetricsConfig -> Store -> IO ()
+runYesodServer port ymc store = do
   app <- toWaiApp App
-  store <- newStore
-  yesodMetricsF <- Yesod.registerYesodMetricsMkMetricsFunction Yesod.spacedYesodMetricsConfig routesFileContents store
-  registerGcMetrics store
-  
-  -- print store contents
-  _ <- forkIO $ loop store
-  
-  _ <- forkServerWith store "localhost" 7000
-  
-  run 3000 (yesodMetricsF $ app)
-  
-  where
-    -- see store updates on the server side
-    loop store = do
-      sample <- sampleAll store
-      print sample      
-      threadDelay 5000000
-      loop store
+  yesodMetricsF <- Yesod.registerYesodMetricsMkMetricsFunction ymc routesFileContents store
+  registerGcMetrics store  
+  run port (yesodMetricsF $ app)

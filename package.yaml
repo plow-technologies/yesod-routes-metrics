@@ -1,5 +1,5 @@
 name: yesod-routes-metrics
-version: '0.1.0.0'
+version: '0.2.0.0'
 synopsis: Parser Yesod routes file and compute route access metrics for Yesod
 description: README.md
 category: Web
@@ -37,11 +37,20 @@ tests:
     main: Spec.hs
     dependencies:
     - base >= 4.7 && < 5
+    - bytestring
+    - containers
+    - ekg
+    - ekg-core
+    - file-embed
     - hspec
     - http-types
+    - HTTP
     - network
+    - text
+    - unordered-containers
     - vault
+    - yesod
     - yesod-core
     - yesod-routes-metrics
     - wai
-    
+    - warp

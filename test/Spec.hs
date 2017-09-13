@@ -4,15 +4,28 @@
 
 module Main where
 
+import           App (runYesodServer)
+
+import           Control.Concurrent (forkIO, killThread, threadDelay)
+
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
 import qualified Data.Vault.Lazy as V
+
+import           Network.HTTP (simpleHTTP, getRequest)
 import qualified Network.HTTP.Types           as H
-import Network.Socket
-import Network.Wai.Internal
-import Yesod.Routes.Metrics
-import Yesod.Routes.Convert.Internal
-import Yesod.Routes.Parser.Internal
-import Yesod.Routes.TH.Types
-import Test.Hspec
+import           Network.Socket
+import           Network.Wai.Internal
+
+import           System.Metrics (Value(..), newStore, sampleAll)
+
+import           Test.Hspec
+
+import           Yesod.Routes.Metrics
+import           Yesod.Routes.Convert.Internal
+import           Yesod.Routes.Parser.Internal
+import           Yesod.Routes.TH.Types
+
 
 -- only 
 defaultRequest :: Request
@@ -133,8 +146,87 @@ spec = do
         , "postNewUserR"
         , "getUserR"
         ]
+        
+  describe "registerYesodMetricsWithResourceTrees" $ do
+    it "makes underlined response status when underlined is True" $ do
+      store <- newStore
+      routes <- registerYesodMetricsWithResourceTrees defaultYesodMetricsConfig appRoutes store
+      (Map.keys $ routeCounters routes) `shouldContain`
+        [ "getHomeR"
+        , "getHomeR_response_status_1xx"
+        , "getHomeR_response_status_2xx"
+        , "getHomeR_response_status_3xx"
+        , "getHomeR_response_status_4xx"
+        , "getHomeR_response_status_5xx"
+        ]
+        
+    it "do not create stores for each response when verbose is False" $ do
+      store <- newStore
+      routes <- registerYesodMetricsWithResourceTrees (defaultYesodMetricsConfig {verbose = False}) appRoutes store
+      (Map.keys $ routeCounters routes) `shouldMatchList`
+        [ "getHomeR"
+        , "getTestR"
+        , "postNewGroupR"
+        , "getGroupR"
+        , "postNewUserR"
+        , "getUserR"
+        ]
+        
+    it "makes spaced response status when underlined is False" $ do
+      store <- newStore
+      routes <- registerYesodMetricsWithResourceTrees (defaultYesodMetricsConfig { underlined = False }) appRoutes store
+      (Map.keys $ routeCounters routes) `shouldContain`
+        [ "getHomeR"
+        , "getHomeR response status 1xx"
+        , "getHomeR response status 2xx"
+        , "getHomeR response status 3xx"
+        , "getHomeR response status 4xx"
+        , "getHomeR response status 5xx"
+        ]      
+
+    it "makes spaced routes and response status when underlined is False and using addSpacesToRoute" $ do
+      store <- newStore
+      routes <- registerYesodMetricsWithResourceTrees (defaultYesodMetricsConfig { underlined = False, alterRouteName = addSpacesToRoute }) appRoutes store
+      (Map.keys $ routeCounters routes) `shouldContain`
+        [ "get Home R"
+        , "get Home R response status 1xx"
+        , "get Home R response status 2xx"
+        , "get Home R response status 3xx"
+        , "get Home R response status 4xx"
+        , "get Home R response status 5xx"
+        ]
+  
+  describe "Run a test server and make sure route metrics are stored in the right places" $ do
+    it "spacedYesodMetricsConfig should add spaces to route names in the store" $ do 
+      store <- newStore
+      threadId <- forkIO $ runYesodServer 3333 spacedYesodMetricsConfig store
+      threadDelay 2000000
+      simpleHTTP (getRequest "http://127.0.0.1:3333")
+      sample <- sampleAll store
       
+      HM.lookup "get Home R" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "get Home R response status 2xx" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "getHomeR" sample `shouldBe` Nothing
+      HM.lookup "getHomeR_response_status_2xx" sample `shouldBe` Nothing
+      HM.lookup "post New User R" sample `shouldBe` (Just $ Counter 0)
       
+      killThread threadId
+
+    it "defaultYesodMetricsConfig does not alter the route names from Yesod and adds response statuses with underlines" $ do 
+      store <- newStore
+      threadId <- forkIO $ runYesodServer 3334 defaultYesodMetricsConfig store
+      threadDelay 2000000
+      simpleHTTP (getRequest "http://127.0.0.1:3334")
+      sample <- sampleAll store
+      
+      HM.lookup "getHomeR" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "getHomeR_response_status_2xx" sample `shouldBe` (Just $ Counter 1)
+      HM.lookup "get Home R" sample `shouldBe` Nothing
+      HM.lookup "get Home R response status 2xx" sample `shouldBe` Nothing
+      HM.lookup "postNewUserR" sample `shouldBe` (Just $ Counter 0)
+      
+      killThread threadId
+
 
 {- Wai Request
 
