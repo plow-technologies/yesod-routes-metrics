@@ -27,6 +27,7 @@ library:
   - time
   - yesod-core
   - vector
+  - vector-algorithms
   - wai
   ghc-options:
   - -Wall
