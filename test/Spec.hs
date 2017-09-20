@@ -204,11 +204,20 @@ spec = do
       simpleHTTP (getRequest "http://127.0.0.1:3333")
       sample <- sampleAll store
       
+      HM.lookup "total requests per interval" sample `shouldBe` (Just $ Counter 1)
       HM.lookup "get Home R" sample `shouldBe` (Just $ Counter 1)
       HM.lookup "get Home R response status 2xx" sample `shouldBe` (Just $ Counter 1)
       HM.lookup "getHomeR" sample `shouldBe` Nothing
       HM.lookup "getHomeR_response_status_2xx" sample `shouldBe` Nothing
       HM.lookup "post New User R" sample `shouldBe` (Just $ Counter 0)
+
+      HM.lookup "post New User R max latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "post New User R min latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "post New User R avg latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "post New User R 50th percentile latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "post New User R 75th percentile latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "post New User R 90th percentile latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "post New User R 99th percentile latency" sample `shouldBe` (Just $ Gauge 0)
       
       killThread threadId
 

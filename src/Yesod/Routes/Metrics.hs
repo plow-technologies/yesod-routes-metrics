@@ -11,9 +11,6 @@ module Yesod.Routes.Metrics (
  , registerYesodMetrics
  , registerYesodMetricsWithResourceTrees
  , metrics
- 
- , percentile
- , quantileIO
  ) where
 
 import Yesod.Routes.Convert.Internal
@@ -39,52 +36,10 @@ import           Yesod.Routes.TH.Types (ResourceTree)
 
 import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
 
-
-import Data.Vector (Vector)
-import qualified Data.Vector as V
-import qualified Data.Vector.Algorithms.Intro as VA
-import qualified Data.Vector.Generic          as VG
-import qualified Data.Vector.Unboxed          as VU
-import qualified Data.Vector.Unboxed.Mutable  as VUM
-
-
-
-{-
-import qualified Data.Vector as IV
-import qualified Data.Vector.Mutable as MV
-import qualified Data.Vector.Generic as V
-import qualified Data.Vector.Algorithms.Intro as VA
--}
-
--- | provide 0.0 - 1.0
-percentile :: Double -> VU.Vector Double -> Double
-percentile = quantile
-
-quantileIO :: Double -> VUM.IOVector Double -> IO Double
-quantileIO quant s = do 
-  VA.sort s
-  iv <- VG.unsafeFreeze s :: IO (VU.Vector Double)
-  return $ quantile quant iv
-
-quantile :: Double -> VU.Vector Double -> Double
-quantile quant s
-    | VU.length s == 0 = 0
-    | pos > fromIntegral (VU.length s) = VU.last s
-    | pos' < 1 = VU.head s
-    | otherwise =
-        lower + (pos - fromIntegral (floor pos :: Int)) * (upper - lower)
-  where
-    q = clamp quant
-    pos = q * (1 + fromIntegral (VU.length s))
-    pos' = truncate pos
-    lower = VU.unsafeIndex s (pos' - 1)
-    upper = VU.unsafeIndex s pos'
-
-clamp :: Double -> Double
-clamp x | x > 1 = 1
-        | x < 0 = 0
-        | otherwise = x
-{-# INLINE clamp #-}
+-- import qualified Data.Vector.Unboxed.Mutable  as VUM
+import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Generic as VG
+import Yesod.Routes.Stats
 
 
 data YesodMetrics = 
@@ -94,9 +49,29 @@ data YesodMetrics =
     , routeMaxLatencies     :: Map.Map String G.Gauge
     , routeMinLatencies     :: Map.Map String G.Gauge
     , routeAverageLatencies :: Map.Map String G.Gauge
-    , routeLatencies        :: Map.Map String (IORef (Vector Double))
+    , route50thPercentiles  :: Map.Map String G.Gauge
+    , route75thPercentiles  :: Map.Map String G.Gauge
+    , route90thPercentiles  :: Map.Map String G.Gauge
+    , route99thPercentiles  :: Map.Map String G.Gauge
+    , routeLatencies        :: Map.Map String (IORef (VU.Vector Double))
     , routeLatencySum       :: Map.Map String (IORef Int64)  -- used for calculation only with its routeCounter to calculate average
     }
+
+
+data YesodMetricsHelper = 
+  YesodMetricsHelper
+    { routeCounters'         :: [(String, Counter.Counter)]
+    , routeMaxLatencies'     :: (String, G.Gauge)
+    , routeMinLatencies'     :: (String, G.Gauge)
+    , routeAverageLatencies' :: (String, G.Gauge)
+    , route50thPercentiles'  :: (String, G.Gauge)
+    , route75thPercentiles'  :: (String, G.Gauge)
+    , route90thPercentiles'  :: (String, G.Gauge)
+    , route99thPercentiles'  :: (String, G.Gauge)
+    , routeLatencies'        :: (String, (IORef (VU.Vector Double)))
+    , routeLatencySum'       :: (String, (IORef Int64))
+    }
+
 
 data YesodMetricsConfig =
   YesodMetricsConfig
@@ -136,25 +111,6 @@ registerYesodMetrics config routesFileContents store = do
   where
     resources = resourcesFromString . C.unpack $ routesFileContents
 
-
-fst4 :: (a,b,c,d,e,f) -> a
-fst4 (a,_,_,_,_,_) = a
-
-snd4 :: (a,b,c,d,e,f) -> b
-snd4 (_,b,_,_,_,_) = b
-
-thrd4 :: (a,b,c,d,e,f) -> c
-thrd4 (_,_,c,_,_,_) = c
-
-frth4 :: (a,b,c,d,e,f) -> d
-frth4 (_,_,_,d,_,_) = d
-
-ffth5 :: (a,b,c,d,e,f) -> e
-ffth5 (_,_,_,_,e,_) = e
-
-sxth6 :: (a,b,c,d,e,f) -> f
-sxth6 (_,_,_,_,_,f) = f
-
 registerYesodMetricsWithResourceTrees :: YesodMetricsConfig -> [ResourceTree String] -> Store -> IO YesodMetrics
 registerYesodMetricsWithResourceTrees ymc resources store = do
   -- (counters,maxs,mins,avgs,latencies)
@@ -173,29 +129,42 @@ registerYesodMetricsWithResourceTrees ymc resources store = do
     maxLatency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_max_latency")) store
     minLatency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_min_latency")) store
     avgLatency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_avg_latency")) store
-    latencies     <- newIORef V.empty
+    p50Latency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_50th_percentile_latency")) store
+    p75Latency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_75th_percentile_latency")) store
+    p90Latency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_90th_percentile_latency")) store
+    p99Latency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_99th_percentile_latency")) store
+    latencies     <- newIORef VU.empty
     latencySumRef <- newIORef 0
 
-    return ( counters
-           , (route,maxLatency)
-           , (route,minLatency)
-           , (route,avgLatency)
-           , (route,latencies)
-           , (route,latencySumRef)
-           )
+    return $
+     YesodMetricsHelper
+       counters
+       (route,maxLatency)
+       (route,minLatency)
+       (route,avgLatency)
+       (route,p50Latency)
+       (route,p75Latency)
+       (route,p90Latency)
+       (route,p99Latency)       
+       (route,latencies)
+       (route,latencySumRef)
   
   totalRequestsCounter <- createCounter (T.pack $ alterResponseStatus "total_requests_per_interval") store
     
   return $ 
     YesodMetrics
       totalRequestsCounter
-      (Map.fromList $ concat $ fst4 <$> dats) 
-      (Map.fromList $ snd4  <$> dats) 
-      (Map.fromList $ thrd4 <$> dats) 
-      (Map.fromList $ frth4 <$> dats)
-      (Map.fromList $ ffth5 <$> dats)
-      (Map.fromList $ sxth6 <$> dats)
-
+      (Map.fromList $ concat $ routeCounters' <$> dats) 
+      (Map.fromList $ routeMaxLatencies'      <$> dats) 
+      (Map.fromList $ routeMinLatencies'      <$> dats) 
+      (Map.fromList $ routeAverageLatencies'  <$> dats)
+      (Map.fromList $ route50thPercentiles'   <$> dats)
+      (Map.fromList $ route75thPercentiles'   <$> dats)
+      (Map.fromList $ route90thPercentiles'   <$> dats)
+      (Map.fromList $ route99thPercentiles'   <$> dats)
+      (Map.fromList $ routeLatencies'         <$> dats)
+      (Map.fromList $ routeLatencySum'        <$> dats)
+      
   where
     routes = (alterRouteName ymc) <$> convertResourceTreesToRouteNames resources
     
@@ -240,10 +209,11 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
           updateRoute ((alterRouteName ymc) routeName)
           updateTotalRequests
           
-          let diff = (round $ 1000 * (diffUTCTime after before))
-          updateMaxLatency ((alterRouteName ymc) routeName) diff
-          updateMinLatency ((alterRouteName ymc) routeName) diff
-          updateAverageLatency ((alterRouteName ymc) routeName) diff
+          let latency = (round $ 1000 * (diffUTCTime after before))
+          updateMaxLatency ((alterRouteName ymc) routeName) latency
+          updateMinLatency ((alterRouteName ymc) routeName) latency
+          updateAverageLatency ((alterRouteName ymc) routeName) latency          
+          updatePercentiles ((alterRouteName ymc) routeName) latency
           
           case statusCode $ responseStatus res of
             s | s >= 500  -> updateRoute (routeName' <> (alterResponseStatus "_response_status_5xx"))
@@ -294,6 +264,22 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
         mc = (Map.lookup name (routeCounters   yesodMetrics))
         ms = (Map.lookup name (routeLatencySum yesodMetrics))
         ma = (Map.lookup name (routeAverageLatencies yesodMetrics))
-
+    
+    updatePercentiles :: String -> Int64 -> IO ()
+    updatePercentiles name newLatency = do
+      case Map.lookup name (routeLatencies yesodMetrics) of
+        Nothing -> return ()
+        Just latenciesVectorIORef -> do
+          atomicModifyIORef latenciesVectorIORef (\ls -> (VU.snoc ls (fromIntegral newLatency), ()))
+          latenciesVector <- readIORef latenciesVectorIORef
+          latenciesVectorMutable <- VG.basicUnsafeThaw latenciesVector
+          p50 <- percentileWithSort 0.5 latenciesVectorMutable
+          p75 <- percentileWithSort 0.75 latenciesVectorMutable
+          p90 <- percentileWithSort 0.90 latenciesVectorMutable
+          p99 <- percentileWithSort 0.99 latenciesVectorMutable
+          maybe (return ()) (\gauge -> G.set gauge (round p50)) (Map.lookup name (route50thPercentiles yesodMetrics))
+          maybe (return ()) (\gauge -> G.set gauge (round p75)) (Map.lookup name (route75thPercentiles yesodMetrics))
+          maybe (return ()) (\gauge -> G.set gauge (round p90)) (Map.lookup name (route90thPercentiles yesodMetrics))
+          maybe (return ()) (\gauge -> G.set gauge (round p99)) (Map.lookup name (route99thPercentiles yesodMetrics))          
 
 -- collect percentiles 90 95 99
