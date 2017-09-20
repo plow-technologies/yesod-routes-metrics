@@ -219,6 +219,64 @@ spec = do
       HM.lookup "post New User R 90th percentile latency" sample `shouldBe` (Just $ Gauge 0)
       HM.lookup "post New User R 99th percentile latency" sample `shouldBe` (Just $ Gauge 0)
       
+      -- test latency data expenctations
+
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/1000/10000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/1000/10000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/1000/10000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/1000/10000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/1000/10000")
+      
+      sample2 <- sampleAll store
+
+      HM.lookup "total requests per interval" sample2 `shouldBe` (Just $ Counter 6)
+      HM.lookup "get Delay R" sample2 `shouldBe` (Just $ Counter 5)
+
+      let (Just (Gauge minLatency)) = HM.lookup "get Delay R min latency" sample2
+      let (Just (Gauge maxLatency)) = HM.lookup "get Delay R max latency" sample2
+      let (Just (Gauge avgLatency)) = HM.lookup "get Delay R avg latency" sample2
+      let (Just (Gauge p50Latency)) = HM.lookup "get Delay R 50th percentile latency" sample2
+      let (Just (Gauge p75Latency)) = HM.lookup "get Delay R 75th percentile latency" sample2
+      let (Just (Gauge p90Latency)) = HM.lookup "get Delay R 90th percentile latency" sample2
+      let (Just (Gauge p99Latency)) = HM.lookup "get Delay R 99th percentile latency" sample2
+      
+      minLatency `shouldSatisfy` (> 0)
+      avgLatency `shouldSatisfy` (> 0)      
+      maxLatency `shouldSatisfy` (> 0)
+      (minLatency <= maxLatency) `shouldBe` True
+      (minLatency <= avgLatency && avgLatency <= maxLatency) `shouldBe` True
+      (    minLatency <= p50Latency
+        && p50Latency <= p75Latency 
+        && p75Latency <= p90Latency 
+        && p90Latency <= p99Latency
+        && p99Latency <= maxLatency
+           ) `shouldBe` True
+      
+      -- force longer delay, all latency values should increase
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/11000/20000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/11000/20000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/11000/20000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/11000/20000")
+      simpleHTTP (getRequest "http://127.0.0.1:3333/delay/11000/20000")
+
+      sample3 <- sampleAll store
+
+      let (Just (Gauge minLatency2)) = HM.lookup "get Delay R min latency" sample3
+      let (Just (Gauge maxLatency2)) = HM.lookup "get Delay R max latency" sample3
+      let (Just (Gauge avgLatency2)) = HM.lookup "get Delay R avg latency" sample3
+      let (Just (Gauge p50Latency2)) = HM.lookup "get Delay R 50th percentile latency" sample3
+      let (Just (Gauge p75Latency2)) = HM.lookup "get Delay R 75th percentile latency" sample3
+      let (Just (Gauge p90Latency2)) = HM.lookup "get Delay R 90th percentile latency" sample3
+      let (Just (Gauge p99Latency2)) = HM.lookup "get Delay R 99th percentile latency" sample3
+
+      (minLatency <= minLatency2) `shouldBe` True
+      (maxLatency < maxLatency2)  `shouldBe` True
+      (avgLatency < avgLatency2)  `shouldBe` True
+      (p50Latency < p50Latency2)  `shouldBe` True
+      (p75Latency < p75Latency2)  `shouldBe` True
+      (p90Latency < p90Latency2)  `shouldBe` True
+      (p99Latency < p99Latency2)  `shouldBe` True
+
       killThread threadId
 
     it "defaultYesodMetricsConfig does not alter the route names from Yesod and adds response statuses with underlines" $ do 
@@ -227,12 +285,22 @@ spec = do
       threadDelay 2000000
       simpleHTTP (getRequest "http://127.0.0.1:3334")
       sample <- sampleAll store
-      
+
+      HM.lookup "total_requests_per_interval" sample `shouldBe` (Just $ Counter 1)
       HM.lookup "getHomeR" sample `shouldBe` (Just $ Counter 1)
       HM.lookup "getHomeR_response_status_2xx" sample `shouldBe` (Just $ Counter 1)
       HM.lookup "get Home R" sample `shouldBe` Nothing
       HM.lookup "get Home R response status 2xx" sample `shouldBe` Nothing
       HM.lookup "postNewUserR" sample `shouldBe` (Just $ Counter 0)
+
+      HM.lookup "postNewUserR_max_latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "postNewUserR_min_latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "postNewUserR_avg_latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "postNewUserR_50th_percentile_latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "postNewUserR_75th_percentile_latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "postNewUserR_90th_percentile_latency" sample `shouldBe` (Just $ Gauge 0)
+      HM.lookup "postNewUserR_99th_percentile_latency" sample `shouldBe` (Just $ Gauge 0)
+
       
       killThread threadId
 

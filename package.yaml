@@ -48,6 +48,7 @@ tests:
     - http-types
     - HTTP
     - network
+    - random
     - text
     - unordered-containers
     - vault

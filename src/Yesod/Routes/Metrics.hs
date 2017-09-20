@@ -243,12 +243,14 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
         (return ())
         (\gauge -> G.read gauge >>= \oldLatency -> if newLatency > oldLatency then G.set gauge newLatency else return ())
         (Map.lookup name (routeMaxLatencies yesodMetrics))
-
+    
+    -- The min_latency gauge will be initiated to 0. We should ignore this 
+    -- value the first time we receive something.
     updateMinLatency :: String -> Int64 -> IO ()
     updateMinLatency name newLatency = 
       maybe 
         (return ())
-        (\gauge -> G.read gauge >>= \oldLatency -> if newLatency < oldLatency then G.set gauge newLatency else return ())
+        (\gauge -> G.read gauge >>= \oldLatency -> if (newLatency < oldLatency || oldLatency <= 0) then G.set gauge newLatency else return ())
         (Map.lookup name (routeMinLatencies yesodMetrics))
     
     updateAverageLatency :: String -> Int64 -> IO ()
