@@ -22,7 +22,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
 import           Data.Char (isUpper)
 import           Data.Int (Int64)
-import           Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
+import           Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef, writeIORef)
 import           Data.Maybe (maybe)
 import           Data.Monoid     ((<>))
 import qualified Data.Map.Strict as Map
@@ -77,6 +77,7 @@ data YesodMetricsConfig =
     , alterRouteName :: (String -> String)
     }
 
+-- | if you want to periodically reset that gauge values
 resetYesodMetricsGauges :: YesodMetrics -> IO ()
 resetYesodMetricsGauges ym = do
   mapM_ (\g -> void $ G.set g 0) $ routeMaxLatencies ym
@@ -86,6 +87,7 @@ resetYesodMetricsGauges ym = do
   mapM_ (\g -> void $ G.set g 0) $ route75thPercentiles ym
   mapM_ (\g -> void $ G.set g 0) $ route90thPercentiles ym
   mapM_ (\g -> void $ G.set g 0) $ route99thPercentiles ym
+  mapM_ (\g -> writeIORef g VU.empty) $ routeLatencies ym
 
 defaultYesodMetricsConfig :: YesodMetricsConfig
 defaultYesodMetricsConfig = YesodMetricsConfig "" True True id
