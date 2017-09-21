@@ -108,10 +108,10 @@ removeUnderlines =
     )
 
 
-registerYesodMetricsMkMetricsFunction :: YesodMetricsConfig -> ByteString -> Store -> IO Middleware
+registerYesodMetricsMkMetricsFunction :: YesodMetricsConfig -> ByteString -> Store -> IO (YesodMetrics, Middleware)
 registerYesodMetricsMkMetricsFunction config routesFileContents store = do
   ym <- registerYesodMetrics config routesFileContents store
-  return $ metrics config routesFileContents ym
+  return (ym, metrics config routesFileContents ym)
 
 registerYesodMetrics :: YesodMetricsConfig -> ByteString -> Store -> IO YesodMetrics
 registerYesodMetrics config routesFileContents store = do
