@@ -213,6 +213,7 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
           updateTotalRequests
           
           let latency = (round $ 1000 * (diffUTCTime after before))
+          print $ "Latency : " ++ (show latency)
           updateMaxLatency ((alterRouteName ymc) routeName) latency
           updateMinLatency ((alterRouteName ymc) routeName) latency
           updateAvgAndPercentiles ((alterRouteName ymc) routeName) latency

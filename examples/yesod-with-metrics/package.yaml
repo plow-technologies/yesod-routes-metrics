@@ -19,6 +19,7 @@ executables:
     - ekg
     - ekg-core
     - file-embed
+    - random
     - text
     - warp
     - yesod-routes-metrics

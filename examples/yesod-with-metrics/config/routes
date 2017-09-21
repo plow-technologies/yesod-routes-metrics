@@ -1,5 +1,7 @@
 / HomeR GET
 
+/delay/#Int/#Int DelayR GET
+
 /user      NewUserR POST 
 
 /user/#Int UserR    GET DELETE
