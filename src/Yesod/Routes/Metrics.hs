@@ -3,6 +3,7 @@
 module Yesod.Routes.Metrics (
    YesodMetrics(..)
  , YesodMetricsConfig(..)
+ , resetYesodMetricsGauges
  , defaultYesodMetricsConfig
  , spacedYesodMetricsConfig
  , addSpacesToRoute
@@ -16,30 +17,27 @@ module Yesod.Routes.Metrics (
 import Yesod.Routes.Convert.Internal
 import Yesod.Routes.Parser.Internal
 
-import           Control.Monad   (forM)
+import           Control.Monad   (forM, void)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as C
 import           Data.Char (isUpper)
 import           Data.Int (Int64)
+import           Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
 import           Data.Maybe (maybe)
 import           Data.Monoid     ((<>))
 import qualified Data.Map.Strict as Map
 import           Data.Text       (Text)
 import qualified Data.Text       as T
 import           Data.Time
+import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Generic as VG
 import           Network.HTTP.Types.Status   (statusCode)
 import           Network.Wai
 import           System.Metrics
 import qualified System.Metrics.Counter as Counter
 import qualified System.Metrics.Gauge   as G
+import           Yesod.Routes.Stats
 import           Yesod.Routes.TH.Types (ResourceTree)
-
-import Data.IORef (IORef, atomicModifyIORef, newIORef, readIORef)
-
--- import qualified Data.Vector.Unboxed.Mutable  as VUM
-import qualified Data.Vector.Unboxed as VU
-import qualified Data.Vector.Generic as VG
-import Yesod.Routes.Stats
 
 
 data YesodMetrics = 
@@ -54,7 +52,6 @@ data YesodMetrics =
     , route90thPercentiles  :: Map.Map String G.Gauge
     , route99thPercentiles  :: Map.Map String G.Gauge
     , routeLatencies        :: Map.Map String (IORef (VU.Vector Double))
-    , routeLatencySum       :: Map.Map String (IORef Int64)  -- used for calculation only with its routeCounter to calculate average
     }
 
 
@@ -69,7 +66,6 @@ data YesodMetricsHelper =
     , route90thPercentiles'  :: (String, G.Gauge)
     , route99thPercentiles'  :: (String, G.Gauge)
     , routeLatencies'        :: (String, (IORef (VU.Vector Double)))
-    , routeLatencySum'       :: (String, (IORef Int64))
     }
 
 
@@ -80,6 +76,16 @@ data YesodMetricsConfig =
     , underlined     :: Bool
     , alterRouteName :: (String -> String)
     }
+
+resetYesodMetricsGauges :: YesodMetrics -> IO ()
+resetYesodMetricsGauges ym = do
+  mapM_ (\g -> void $ G.set g 0) $ routeMaxLatencies ym
+  mapM_ (\g -> void $ G.set g 0) $ routeMinLatencies ym
+  mapM_ (\g -> void $ G.set g 0) $ routeAverageLatencies ym
+  mapM_ (\g -> void $ G.set g 0) $ route50thPercentiles ym
+  mapM_ (\g -> void $ G.set g 0) $ route75thPercentiles ym
+  mapM_ (\g -> void $ G.set g 0) $ route90thPercentiles ym
+  mapM_ (\g -> void $ G.set g 0) $ route99thPercentiles ym
 
 defaultYesodMetricsConfig :: YesodMetricsConfig
 defaultYesodMetricsConfig = YesodMetricsConfig "" True True id
@@ -134,7 +140,6 @@ registerYesodMetricsWithResourceTrees ymc resources store = do
     p90Latency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_90th_percentile_latency")) store
     p99Latency    <- createGauge (namespacedRoute <> (T.pack . alterResponseStatus $ "_99th_percentile_latency")) store
     latencies     <- newIORef VU.empty
-    latencySumRef <- newIORef 0
 
     return $
      YesodMetricsHelper
@@ -147,7 +152,6 @@ registerYesodMetricsWithResourceTrees ymc resources store = do
        (route,p90Latency)
        (route,p99Latency)       
        (route,latencies)
-       (route,latencySumRef)
   
   totalRequestsCounter <- createCounter (T.pack $ alterResponseStatus "total_requests_per_interval") store
     
@@ -163,7 +167,6 @@ registerYesodMetricsWithResourceTrees ymc resources store = do
       (Map.fromList $ route90thPercentiles'   <$> dats)
       (Map.fromList $ route99thPercentiles'   <$> dats)
       (Map.fromList $ routeLatencies'         <$> dats)
-      (Map.fromList $ routeLatencySum'        <$> dats)
       
   where
     routes = (alterRouteName ymc) <$> convertResourceTreesToRouteNames resources
@@ -212,8 +215,7 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
           let latency = (round $ 1000 * (diffUTCTime after before))
           updateMaxLatency ((alterRouteName ymc) routeName) latency
           updateMinLatency ((alterRouteName ymc) routeName) latency
-          updateAverageLatency ((alterRouteName ymc) routeName) latency          
-          updatePercentiles ((alterRouteName ymc) routeName) latency
+          updateAvgAndPercentiles ((alterRouteName ymc) routeName) latency
           
           case statusCode $ responseStatus res of
             s | s >= 500  -> updateRoute (routeName' <> (alterResponseStatus "_response_status_5xx"))
@@ -253,28 +255,15 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
         (\gauge -> G.read gauge >>= \oldLatency -> if (newLatency < oldLatency || oldLatency <= 0) then G.set gauge newLatency else return ())
         (Map.lookup name (routeMinLatencies yesodMetrics))
     
-    updateAverageLatency :: String -> Int64 -> IO ()
-    updateAverageLatency name newLatency = do
-      case (,,) <$> mc <*> ms <*> ma of
-        Nothing -> return ()
-        Just (c,latencySumRef,avgGauge) -> do
-          t <- Counter.read c
-          atomicModifyIORef latencySumRef (\ls -> (ls + newLatency, ()))
-          latencySum <- readIORef latencySumRef
-          G.set avgGauge (round $ (fromIntegral latencySum :: Double) / (fromIntegral t :: Double))
-      where 
-        mc = (Map.lookup name (routeCounters   yesodMetrics))
-        ms = (Map.lookup name (routeLatencySum yesodMetrics))
-        ma = (Map.lookup name (routeAverageLatencies yesodMetrics))
-    
-    updatePercentiles :: String -> Int64 -> IO ()
-    updatePercentiles name newLatency = do
+    updateAvgAndPercentiles :: String -> Int64 -> IO ()
+    updateAvgAndPercentiles name newLatency = do
       case Map.lookup name (routeLatencies yesodMetrics) of
         Nothing -> return ()
         Just latenciesVectorIORef -> do
           atomicModifyIORef latenciesVectorIORef (\ls -> (VU.snoc ls (fromIntegral newLatency), ()))
           latenciesVector <- readIORef latenciesVectorIORef
           latenciesVectorMutable <- VG.basicUnsafeThaw latenciesVector
+          maybe (return ()) (\gauge -> G.set gauge $ round $ mean latenciesVector) (Map.lookup name (routeAverageLatencies yesodMetrics))
           p50 <- percentileWithSort 0.5 latenciesVectorMutable
           p75 <- percentileWithSort 0.75 latenciesVectorMutable
           p90 <- percentileWithSort 0.90 latenciesVectorMutable
@@ -282,6 +271,4 @@ metricsWithResourceTrees ymc resources yesodMetrics app req respond = do
           maybe (return ()) (\gauge -> G.set gauge (round p50)) (Map.lookup name (route50thPercentiles yesodMetrics))
           maybe (return ()) (\gauge -> G.set gauge (round p75)) (Map.lookup name (route75thPercentiles yesodMetrics))
           maybe (return ()) (\gauge -> G.set gauge (round p90)) (Map.lookup name (route90thPercentiles yesodMetrics))
-          maybe (return ()) (\gauge -> G.set gauge (round p99)) (Map.lookup name (route99thPercentiles yesodMetrics))          
-
--- collect percentiles 90 95 99
+          maybe (return ()) (\gauge -> G.set gauge (round p99)) (Map.lookup name (route99thPercentiles yesodMetrics))

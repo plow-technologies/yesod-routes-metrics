@@ -1,6 +1,7 @@
 module Yesod.Routes.Stats 
   ( percentile
-  , percentileWithSort 
+  , percentileWithSort
+  , mean
   ) where
 
 import qualified Data.Vector.Algorithms.Intro as VA
@@ -37,3 +38,12 @@ clamp :: Double -> Double
 clamp x | x > 1 = 1
         | x < 0 = 0
         | otherwise = x
+
+
+data Pair = Pair {-# UNPACK #-} !Int {-# UNPACK #-} !Double
+
+mean :: VU.Vector Double -> Double
+mean xs = s / fromIntegral n
+  where
+    Pair n s       = VU.foldl' k (Pair 0 0) xs
+    k (Pair n' s') x = Pair (n'+1) (s'+x)
