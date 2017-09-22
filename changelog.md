@@ -9,6 +9,10 @@
 
 * Add tests for new metrics.
 
+* `registerYesodMetricsMkMetricsFunction` now returns 
+  `IO (YesodMetrics, Middleware)` in case you want to monitor the values in 
+  `YesodMetrics` manually.
+
 # 0.2.0.0 -- 2017.09.08
 
 * Add `YesodMetricsConfig` to allow control over certain features of the route 
