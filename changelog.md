@@ -1,3 +1,18 @@
+# 0.3.0.0 -- 2017.09.08
+
+* Add `Yesod.Routes.Stats` to calculate a percentile value for a `Vector Double`.
+
+* Collect new metrics for each Yesod routes: `routesTotalRequests`, 
+  `routeMaxLatencies`, `routeMinLatencies`, `routeAverageLatencies`, 
+  `route50thPercentiles`, `route75thPercentiles`, `route90thPercentiles`, 
+  `route99thPercentiles`.
+
+* Add tests for new metrics.
+
+* `registerYesodMetricsMkMetricsFunction` now returns 
+  `IO (YesodMetrics, Middleware)` in case you want to monitor the values in 
+  `YesodMetrics` manually.
+
 # 0.2.0.0 -- 2017.09.08
 
 * Add `YesodMetricsConfig` to allow control over certain features of the route 

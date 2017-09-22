@@ -1,5 +1,5 @@
 name: yesod-routes-metrics
-version: '0.2.0.0'
+version: '0.3.0.0'
 synopsis: Parser Yesod routes file and compute route access metrics for Yesod
 description: README.md
 category: Web
@@ -26,6 +26,8 @@ library:
   - text
   - time
   - yesod-core
+  - vector
+  - vector-algorithms
   - wai
   ghc-options:
   - -Wall
@@ -46,6 +48,7 @@ tests:
     - http-types
     - HTTP
     - network
+    - random
     - text
     - unordered-containers
     - vault

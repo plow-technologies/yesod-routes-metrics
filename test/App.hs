@@ -16,9 +16,10 @@ import qualified Data.Text as T
 import           Foundation
 import           Network.Wai.Handler.Warp (run)
 import           System.Metrics           (newStore, registerGcMetrics, sampleAll, Store)
+import           System.Random            (randomRIO)
+import           System.Remote.Monitoring (forkServerWith)
 import           Yesod
 import qualified Yesod.Routes.Metrics as Yesod
-import           System.Remote.Monitoring (forkServerWith)
 
 mkYesodDispatch "App" resourcesApp
 
@@ -28,6 +29,12 @@ routesFileContents = $(embedFile "test/config/routes")
 getHomeR :: Handler Text
 getHomeR = return "Hello World!"
 
+getDelayR :: Int -> Int -> Handler Text
+getDelayR start stop = do
+  waitTime <- liftIO $ randomRIO (start,stop)
+  liftIO $ threadDelay waitTime -- uses microseconds
+  return $ T.pack . show $ waitTime
+  
 postNewUserR :: Handler Text
 postNewUserR = return $ "Making a new user"
 
