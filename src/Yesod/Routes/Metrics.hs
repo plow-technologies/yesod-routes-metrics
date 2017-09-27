@@ -3,6 +3,7 @@
 module Yesod.Routes.Metrics (
    YesodMetrics(..)
  , YesodMetricsConfig(..)
+ , resetYesodMetricsCounters
  , resetYesodMetricsGauges
  , defaultYesodMetricsConfig
  , spacedYesodMetricsConfig
@@ -77,17 +78,30 @@ data YesodMetricsConfig =
     , alterRouteName :: (String -> String)
     }
 
+-- | if you want to periodically reset the counter values
+resetYesodMetricsCounters :: YesodMetrics -> IO ()
+resetYesodMetricsCounters ym = do
+  reset $ routesTotalRequests ym
+  mapM_ (\c -> reset c) $ routeCounters ym
+  where
+    reset c = do
+      val <- Counter.read c
+      Counter.add c (- val)
+
 -- | if you want to periodically reset that gauge values
 resetYesodMetricsGauges :: YesodMetrics -> IO ()
 resetYesodMetricsGauges ym = do
-  mapM_ (\g -> void $ G.set g 0) $ routeMaxLatencies ym
-  mapM_ (\g -> void $ G.set g 0) $ routeMinLatencies ym
-  mapM_ (\g -> void $ G.set g 0) $ routeAverageLatencies ym
-  mapM_ (\g -> void $ G.set g 0) $ route50thPercentiles ym
-  mapM_ (\g -> void $ G.set g 0) $ route75thPercentiles ym
-  mapM_ (\g -> void $ G.set g 0) $ route90thPercentiles ym
-  mapM_ (\g -> void $ G.set g 0) $ route99thPercentiles ym
-  mapM_ (\g -> writeIORef g VU.empty) $ routeLatencies ym
+  mapM_ (mapM_ reset)
+    [ routeMaxLatencies ym
+    , routeAverageLatencies ym
+    , route50thPercentiles ym
+    , route75thPercentiles ym
+    , route90thPercentiles ym
+    , route99thPercentiles ym
+    ]
+  mapM_ (\g -> writeIORef g VU.empty) $ routeLatencies ym  
+  where
+    reset g =  void $ G.set g 0
 
 defaultYesodMetricsConfig :: YesodMetricsConfig
 defaultYesodMetricsConfig = YesodMetricsConfig "" True True id

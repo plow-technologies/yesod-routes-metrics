@@ -1,3 +1,7 @@
+# 0.3.1.0 -- 2017.09.27
+
+* Add `resetYesodMetricsCounters` function.
+
 # 0.3.0.0 -- 2017.09.08
 
 * Add `Yesod.Routes.Stats` to calculate a percentile value for a `Vector Double`.
