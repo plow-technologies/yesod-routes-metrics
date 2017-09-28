@@ -48,7 +48,7 @@ main :: IO ()
 main = do
   app <- toWaiApp App
   store <- newStore
-  yesodMetricsF <- Yesod.registerYesodMetricsMkMetricsFunction Yesod.spacedYesodMetricsConfig routesFileContents store
+  (_,yesodMetricsF) <- Yesod.registerYesodMetricsMkMetricsFunction Yesod.spacedYesodMetricsConfig routesFileContents store
   registerGcMetrics store
   
   -- print store contents
