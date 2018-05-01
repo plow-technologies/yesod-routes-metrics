@@ -49,4 +49,4 @@ runYesodServer port ymc store = do
   app <- toWaiApp App
   yesodMetricsF <- Yesod.registerYesodMetricsMkMetricsFunction ymc routesFileContents store
   registerGcMetrics store  
-  run port (yesodMetricsF $ app)
+  run port $ (snd yesodMetricsF) app

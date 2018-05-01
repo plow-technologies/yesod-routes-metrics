@@ -51,7 +51,7 @@ defaultRequest =
 deriving instance Eq (Dispatch String)
 deriving instance Eq (Resource String)
 deriving instance Eq (Piece String)
-deriving instance Show (ResourceTree String)
+-- deriving instance Show (ResourceTree String)
 deriving instance Eq (ResourceTree String)
 
 homeR :: ResourceTree String
