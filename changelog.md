@@ -1,5 +1,8 @@
-# 0.3.1.0 -- 2017.09.27
 
+# 0.4.0.0 -- 2018.05.01
+* upgrade to ghc 8.2.2, lts-11.7, tests building
+
+# 0.3.1.0 -- 2017.09.27
 * Add `resetYesodMetricsCounters` function.
 
 # 0.3.0.0 -- 2017.09.08
